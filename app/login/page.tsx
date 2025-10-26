@@ -73,7 +73,7 @@ export default function LoginPage() {
               />
 
               <Link
-                href="/recuperar-password"
+                href="/recu-pass"
                 className="text-sm text-primary hover:text-primary/80 transition-colors"
               >
                 ¿Olvidaste tu contraseña?
@@ -91,7 +91,7 @@ export default function LoginPage() {
           <div className="mt-6 text-center">
             <p className="text-sm text-muted-foreground">
               ¿No tienes una cuenta?{" "}
-              <Link href="/registro" className="text-primary hover:text-primary/80 font-semibold transition-colors">
+              <Link href="/register" className="text-primary hover:text-primary/80 font-semibold transition-colors">
                 Regístrate aquí
               </Link>
             </p>

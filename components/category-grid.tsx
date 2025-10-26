@@ -5,7 +5,7 @@ const categories = [
     id: "databases",
     title: "Bases de Datos",
     description: "SQL, NoSQL, Modelado y Optimización",
-  icon: "Database",
+    icon: "Database",
     color: "from-blue-500 to-cyan-500",
     questionCount: 25,
   },
@@ -13,7 +13,7 @@ const categories = [
     id: "programming",
     title: "Programación",
     description: "Algoritmos, Estructuras de Datos, POO",
-  icon: "Code",
+    icon: "Code",
     color: "from-purple-500 to-pink-500",
     questionCount: 30,
   },
@@ -21,7 +21,7 @@ const categories = [
     id: "networks",
     title: "Redes",
     description: "Protocolos, Seguridad, Arquitecturas",
-  icon: "Network",
+    icon: "Network",
     color: "from-green-500 to-emerald-500",
     questionCount: 20,
   },
@@ -29,7 +29,7 @@ const categories = [
     id: "architecture",
     title: "Arquitectura",
     description: "Diseño de Software, Patrones, Sistemas",
-  icon: "Cpu",
+    icon: "Cpu",
     color: "from-orange-500 to-red-500",
     questionCount: 22,
   },
@@ -37,7 +37,7 @@ const categories = [
 
 export function CategoryGrid() {
   return (
-    <div className="container px-4 py-8">
+    <div>
       <div className="mb-8 text-center">
         <h2 className="mb-2 text-3xl font-bold text-balance text-foreground md:text-4xl">Selecciona una Categoría</h2>
         <p className="text-muted-foreground text-balance">
