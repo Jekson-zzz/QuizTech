@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -65,6 +66,75 @@ export default function QuizResultsPage() {
   const router = useRouter()
   const category = params.category as string
 
+  // Estado para datos dinámicos del quiz (si vienen de sessionStorage)
+  const [dynamicResults, setDynamicResults] = useState<null | {
+    score: number
+    correctAnswers: number
+    totalQuestions: number
+    timeSpent: number
+    category?: string
+  }>(null)
+
+  useEffect(() => {
+    try {
+      if (typeof window === "undefined") return
+      const raw = sessionStorage.getItem("lastQuizResult")
+      if (!raw) return
+      const parsed = JSON.parse(raw)
+      // minimal validation
+      if (
+        typeof parsed.score === "number" &&
+        typeof parsed.correctAnswers === "number" &&
+        typeof parsed.totalQuestions === "number" &&
+        typeof parsed.timeSpent === "number"
+      ) {
+        setDynamicResults(parsed)
+
+        // Enviar al backend para persistir (y eliminar la clave para evitar reposts)
+        const userId = typeof window !== "undefined" ? localStorage.getItem("userId") : null
+        if (userId) {
+          fetch("/api/quiz/complete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              userId: Number(userId),
+              score: parsed.score,
+              durationSeconds: parsed.timeSpent,
+              category: parsed.category || category,
+            }),
+          })
+            .then(async (res) => {
+              if (!res.ok) {
+                console.warn('POST /api/quiz/complete failed', await res.text())
+                return
+              }
+              console.log('Quiz result sent to server successfully')
+              // remove stored result to avoid duplicate submissions
+              sessionStorage.removeItem("lastQuizResult")
+              // opcional: refrescar la página para que el perfil muestre los cambios inmediatamente
+              try {
+                if (typeof window !== 'undefined') {
+                  // Intencionadamente simple: recargar para que /profile haga fetch de nuevo
+                  // Puedes cambiar esto por una navegación /profile o por invalidación más fina
+                  // router.push('/profile')
+                }
+              } catch (e) {
+                // ignore
+              }
+            })
+            .catch((err) => {
+              console.warn('Network error sending quiz result:', err)
+              // keep stored result so user can retry by reloading
+            })
+        } else {
+          console.warn('No userId found in localStorage; quiz result saved in sessionStorage for later delivery')
+        }
+      }
+    } catch (e) {
+      // ignore parsing errors
+    }
+  }, [category])
+
   const {
     score,
     correctAnswers,
@@ -74,7 +144,18 @@ export default function QuizResultsPage() {
     questions,
     newAchievements,
     achievementProgress,
-  } = resultsData
+  } = dynamicResults
+    ? {
+        score: dynamicResults.score,
+        correctAnswers: dynamicResults.correctAnswers,
+        totalQuestions: dynamicResults.totalQuestions,
+        timeSpent: dynamicResults.timeSpent,
+        xpEarned: 0,
+        questions: resultsData.questions.slice(0, dynamicResults.totalQuestions),
+        newAchievements: resultsData.newAchievements,
+        achievementProgress: resultsData.achievementProgress,
+      }
+    : resultsData
 
   // Determinar el mensaje de desempeño
   const getPerformanceMessage = (score: number) => {

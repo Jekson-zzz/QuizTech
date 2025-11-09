@@ -8,7 +8,7 @@ interface UserGreetingProps {
   streak?: number
 }
 
-export function UserGreeting({ userName = "Estudiante", level = 1, streak = 0 }: UserGreetingProps) {
+export function UserGreeting({ userName = "", level = 0, streak = 0 }: UserGreetingProps) {
   const getGreeting = () => {
     const hour = new Date().getHours()
     if (hour < 12) return "Buenos días"

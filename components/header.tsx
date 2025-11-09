@@ -41,6 +41,7 @@ export function Header() {
             </Link>
           </Button>
         </nav>
+        {/* removed duplicate average score badge to avoid repetition (score shown in profile header/stats) */}
       </div>
     </header>
   )

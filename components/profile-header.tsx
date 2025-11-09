@@ -43,6 +43,7 @@ export function ProfileHeader({ name, level, currentXP, xpToNextLevel }: Profile
                 <Sparkles className="h-4 w-4 text-accent" />
                 <span className="text-sm font-bold text-accent">{currentXP} XP</span>
               </div>
+              {/* averageScore and studyTime are shown in the StatsGrid; avoid duplicating them here */}
             </div>
           </div>
         </div>

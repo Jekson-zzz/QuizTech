@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import Link from "next/link"
 import { useState } from "react"
+import { useRouter } from 'next/navigation'
 
 export default function RegisterPage() {
   const [fullName, setFullName] = useState("")
@@ -16,7 +17,10 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState("")
   const [error, setError] = useState("")
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const router = useRouter()
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
 
@@ -32,8 +36,29 @@ export default function RegisterPage() {
       return
     }
 
-    // Aquí irá la lógica de registro
-    console.log("Register attempt:", { fullName, email, password })
+    setLoading(true)
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: fullName, email, password }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data?.error || 'Error al crear la cuenta')
+        setLoading(false)
+        return
+      }
+
+      // Registro exitoso — redirigir a login o página inicial
+      router.push('/login')
+    } catch (err) {
+      console.error(err)
+      setError('Error de red')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -138,9 +163,10 @@ export default function RegisterPage() {
 
             <Button
               type="submit"
+              disabled={loading}
               className="w-full h-11 bg-linear-to-r from-primary to-accent hover:opacity-90 transition-opacity text-primary-foreground font-semibold"
             >
-              Crear cuenta
+              {loading ? 'Creando...' : 'Crear cuenta'}
             </Button>
           </form>
 

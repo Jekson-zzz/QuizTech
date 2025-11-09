@@ -162,6 +162,8 @@ export default function QuizPage() {
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null)
   const [timeLeft, setTimeLeft] = useState(600) // 10 minutos en segundos
   const [isAnswered, setIsAnswered] = useState(false)
+  const [correctCount, setCorrectCount] = useState(0)
+  const [answersCorrect, setAnswersCorrect] = useState<boolean[]>([])
 
   const quiz = quizData[category as keyof typeof quizData]
 
@@ -170,6 +172,9 @@ export default function QuizPage() {
       router.push("/inicio")
       return
     }
+
+    // inicializar el array de correctas según número de preguntas
+    setAnswersCorrect(Array(quiz.questions.length).fill(false))
 
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
@@ -193,7 +198,14 @@ export default function QuizPage() {
   const handleConfirm = () => {
     if (selectedAnswer === null) return
     setIsAnswered(true)
-    // Aquí se manejaría la lógica de verificación de respuesta
+    // Lógica de verificación de respuesta y registro en answersCorrect
+    const isCorrect = typeof question.correctAnswer === "number" && selectedAnswer === question.correctAnswer
+    if (isCorrect) setCorrectCount((c) => c + 1)
+    setAnswersCorrect((prev) => {
+      const copy = prev.slice()
+      copy[currentQuestion] = Boolean(isCorrect)
+      return copy
+    })
   }
 
   const handleNext = () => {
@@ -202,6 +214,29 @@ export default function QuizPage() {
       setSelectedAnswer(null)
       setIsAnswered(false)
     } else {
+      // Calcular resultados y guardarlos temporalmente para la página de resultados
+  const totalQuestions = quiz.questions.length
+  // Usar el array answersCorrect para evitar condiciones de carrera en setState
+  const correctAnswers = answersCorrect.filter(Boolean).length
+  const score = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0
+      const timeSpent = 600 - timeLeft // segundos transcurridos
+
+      const payload = {
+        score,
+        correctAnswers,
+        totalQuestions,
+        timeSpent, // segundos
+        category,
+      }
+
+      try {
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem("lastQuizResult", JSON.stringify(payload))
+        }
+      } catch (e) {
+        // ignore sessionStorage errors
+      }
+
       router.push(`/quiz/${category}/results`)
     }
   }

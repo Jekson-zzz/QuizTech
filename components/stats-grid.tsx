@@ -1,24 +1,17 @@
 "use client"
 
 import { Card } from "@/components/ui/card"
-import { CheckCircle2, Target, Flame, Clock } from "lucide-react"
+import { CheckCircle2, Target, Flame } from "lucide-react"
 
 interface StatsGridProps {
   stats: {
     quizzesCompleted: number
     averageScore: number
     streak: number
-    studyTime: number
   }
 }
 
 export function StatsGrid({ stats }: StatsGridProps) {
-  const formatStudyTime = (minutes: number) => {
-    const hours = Math.floor(minutes / 60)
-    const mins = minutes % 60
-    return `${hours}h ${mins}m`
-  }
-
   const statsData = [
     {
       icon: CheckCircle2,
@@ -41,13 +34,6 @@ export function StatsGrid({ stats }: StatsGridProps) {
       color: "from-chart-3 to-chart-3/70",
       bgColor: "bg-chart-3/10",
     },
-    {
-      icon: Clock,
-      label: "Tiempo de Estudio",
-      value: formatStudyTime(stats.studyTime),
-      color: "from-chart-4 to-chart-4/70",
-      bgColor: "bg-chart-4/10",
-    },
   ]
 
   return (
@@ -60,7 +46,7 @@ export function StatsGrid({ stats }: StatsGridProps) {
             <Card key={index} className="p-4 border-2 transition-all hover:border-primary hover:shadow-lg">
               <div className="flex flex-col gap-3">
                 <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${stat.bgColor}`}>
-                  <Icon className="h-6 w-6" style={{ color: `oklch(var(--color-${stat.color.split("-")[1]}))` }} />
+                  <Icon className="h-6 w-6" />
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">{stat.label}</p>
