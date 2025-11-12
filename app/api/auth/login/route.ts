@@ -97,6 +97,66 @@ export async function POST(req: Request) {
     } catch (e) {
       console.error('Error reseteando intentos:', e);
     }
+    // Intentar actualizar también la racha (streak) y last_active al iniciar sesión.
+    // Mismo criterio que en quiz/complete: comparación por fecha UTC.
+    try {
+      const [rows2] = await conn.execute('SELECT streak, last_active FROM `profile_data` WHERE id = ? LIMIT 1', [user.id]);
+      const r = Array.isArray(rows2) && rows2.length ? (rows2 as any)[0] : null;
+      if (r) {
+        const prevStreak = Number(r.streak || 0);
+        // Normalize last_active to YYYY-MM-DD regardless of driver type (Date or string)
+        let lastActiveDateStr: string | null = null;
+        if (r.last_active) {
+          if (r.last_active instanceof Date) {
+            lastActiveDateStr = (r.last_active as Date).toISOString().slice(0, 10);
+          } else {
+            // could be string like '2025-11-11' or '2025-11-11T00:00:00.000Z'
+            const s = String(r.last_active);
+            const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+            lastActiveDateStr = m ? m[1] : s;
+          }
+        } else {
+          lastActiveDateStr = null;
+        }
+
+        const toUtc4DateString = (d = new Date()) => {
+          const ms = d.getTime() - 4 * 60 * 60 * 1000;
+          return new Date(ms).toISOString().slice(0, 10);
+        };
+        const todayStr = toUtc4DateString();
+        const yesterdayStr = toUtc4DateString(new Date(Date.now() - 24 * 60 * 60 * 1000));
+
+        let newStreak = 1;
+        if (lastActiveDateStr) {
+          if (lastActiveDateStr === todayStr) {
+            newStreak = prevStreak;
+          } else if (lastActiveDateStr === yesterdayStr) {
+            newStreak = prevStreak + 1;
+          } else {
+            newStreak = 1;
+          }
+        } else {
+          newStreak = 1;
+        }
+
+        // Debug logging to help diagnose why streak may not change.
+        try {
+          console.log('[streak-debug] userId=', user.id, 'prevStreak=', prevStreak, 'lastActiveDate=', lastActiveDateStr);
+          console.log('[streak-debug] today=', todayStr, 'yesterday=', yesterdayStr);
+          console.log('[streak-debug] computed newStreak=', newStreak);
+        } catch (e) {
+          // ignore logging errors
+        }
+
+        const [updateRes] = await conn.execute('UPDATE `profile_data` SET streak = ?, last_active = DATE(UTC_TIMESTAMP() - INTERVAL 4 HOUR) WHERE id = ?', [newStreak, user.id]);
+        try {
+          console.log('[streak-debug] updateRes=', updateRes && (updateRes as any).affectedRows ? (updateRes as any).affectedRows : updateRes);
+        } catch (e) {}
+      }
+    } catch (e) {
+      console.warn('No se pudo actualizar streak/last_active en login (columnas ausentes?):', e && (e as any).message ? (e as any).message : e);
+    }
+
     await conn.end();
 
     return NextResponse.json({ ok: true, userId: user.id });

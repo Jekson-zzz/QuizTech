@@ -45,6 +45,60 @@ export async function POST(req: Request) {
         console.warn('No se pudo actualizar agregados en profile_data (columnas ausentes?):', e && (e as any).message ? (e as any).message : e);
       }
 
+      // Intentar actualizar racha (streak) y last_active.
+      // Lógica: usamos fechas en UTC para una regla de "día calendario UTC" por simplicidad.
+      // - Si last_active es hoy (UTC) -> no cambiar la racha
+      // - Si last_active es ayer (UTC) -> incrementar racha
+      // - Si last_active es más antiguo o nulo -> resetear a 1
+      try {
+        // Intentamos leer streak y last_active; si no existen las columnas, lanzará y lo capturamos
+        const [rows2] = await conn.execute('SELECT streak, last_active FROM `profile_data` WHERE id = ? LIMIT 1', [userId]);
+        const r = Array.isArray(rows2) && rows2.length ? (rows2 as any)[0] : null;
+        if (r) {
+            const prevStreak = Number(r.streak || 0);
+            // Normalize last_active to YYYY-MM-DD regardless of driver type
+            let lastActiveDateStr: string | null = null;
+            if (r.last_active) {
+              if (r.last_active instanceof Date) {
+                lastActiveDateStr = (r.last_active as Date).toISOString().slice(0, 10);
+              } else {
+                const s = String(r.last_active);
+                const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+                lastActiveDateStr = m ? m[1] : s;
+              }
+            } else {
+              lastActiveDateStr = null;
+            }
+
+            // Calculamos la fecha "hoy" y "ayer" en UTC-4 como strings YYYY-MM-DD
+            const toUtc4DateString = (d = new Date()) => {
+              const ms = d.getTime() - 4 * 60 * 60 * 1000;
+              return new Date(ms).toISOString().slice(0, 10);
+            };
+            const todayStr = toUtc4DateString();
+            const yesterdayStr = toUtc4DateString(new Date(Date.now() - 24 * 60 * 60 * 1000));
+
+            let newStreak = 1;
+            if (lastActiveDateStr) {
+              if (lastActiveDateStr === todayStr) {
+                newStreak = prevStreak;
+              } else if (lastActiveDateStr === yesterdayStr) {
+                newStreak = prevStreak + 1;
+              } else {
+                newStreak = 1;
+              }
+            } else {
+              newStreak = 1;
+            }
+
+            // Actualizamos streak y last_active a la fecha (DATE) correspondiente en UTC-4
+            await conn.execute('UPDATE `profile_data` SET streak = ?, last_active = DATE(UTC_TIMESTAMP() - INTERVAL 4 HOUR) WHERE id = ?', [newStreak, userId]);
+        }
+      } catch (e) {
+        // Si las columnas no existen (migración no aplicada), ignoramos para no romper la petición
+        console.warn('No se pudo actualizar streak/last_active (columnas ausentes?):', e && (e as any).message ? (e as any).message : e);
+      }
+
       await conn.end();
       return NextResponse.json({ ok: true });
     } catch (e) {

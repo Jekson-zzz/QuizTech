@@ -4,9 +4,9 @@ import mysql from 'mysql2/promise';
 async function getConnection() {
   return mysql.createConnection({
     host: process.env.DB_HOST || '127.0.0.1',
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'your_db',
+    user: process.env.DB_USER || 'quizz_user',
+    password: process.env.DB_PASSWORD || 'mcSyjVSa20HSagsK',
+    database: process.env.DB_NAME || 'quizz-tech-backend',
     port: Number(process.env.DB_PORT || 3306),
   });
 }
