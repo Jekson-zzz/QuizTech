@@ -1,4 +1,4 @@
-import { CategoryGrid } from "@/components/category-grid"
+import CategoryGrid from "@/components/category-grid"
 import { Header } from "@/components/header"
 import { UserGreetingWrapper } from "@/components/user-greeting-wrapper"
 

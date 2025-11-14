@@ -73,7 +73,17 @@ export default function QuizResultsPage() {
     totalQuestions: number
     timeSpent: number
     category?: string
+    // detalle opcional por pregunta: permite mostrar respuestas seleccionadas y respuesta correcta
+    details?: Array<{
+      id: number
+      question: string
+      selected?: string | number
+      correctAnswer?: string | number
+      correct?: boolean
+      options?: Array<{ id: number; text: string }>
+    }>
   }>(null)
+  const [xpFromServer, setXpFromServer] = useState<number | null>(null)
 
   useEffect(() => {
     try {
@@ -81,41 +91,89 @@ export default function QuizResultsPage() {
       const raw = sessionStorage.getItem("lastQuizResult")
       if (!raw) return
       const parsed = JSON.parse(raw)
-      // minimal validation
+      // Normalizar y validar datos mínimos. Aceptamos dos formas:
+      // 1) Totales: { score, correctAnswers, totalQuestions, timeSpent }
+      // 2) Detalle: { details: [{ id, question, selected, correctAnswer, correct }], timeSpent, category }
+      const safe = {
+        score: typeof parsed.score === "number" ? parsed.score : undefined,
+        correctAnswers: typeof parsed.correctAnswers === "number" ? parsed.correctAnswers : undefined,
+        totalQuestions: typeof parsed.totalQuestions === "number" ? parsed.totalQuestions : undefined,
+        timeSpent: typeof parsed.timeSpent === "number" ? parsed.timeSpent : undefined,
+        category: typeof parsed.category === "string" ? parsed.category : undefined,
+        details: Array.isArray(parsed.details) ? parsed.details : undefined,
+      }
+
+      // If we have details, compute totals when missing
+      if (safe.details) {
+        const total = safe.details.length
+        const correctCount = safe.details.filter((d: any) => d.correct === true).length
+        if (safe.timeSpent !== undefined || typeof parsed.timeSpent === "number") {
+          // keep provided
+        }
+        // compute score if not provided
+        if (typeof safe.score !== "number") safe.score = Math.round((correctCount / total) * 100)
+        if (typeof safe.correctAnswers !== "number") safe.correctAnswers = correctCount
+        if (typeof safe.totalQuestions !== "number") safe.totalQuestions = total
+      }
+
+      // minimal validation: need at least totals or details
       if (
-        typeof parsed.score === "number" &&
-        typeof parsed.correctAnswers === "number" &&
-        typeof parsed.totalQuestions === "number" &&
-        typeof parsed.timeSpent === "number"
+        (typeof safe.score === "number" && typeof safe.correctAnswers === "number" && typeof safe.totalQuestions === "number" && typeof safe.timeSpent === "number") ||
+        (safe.details && typeof safe.timeSpent === "number") ||
+        (safe.details && typeof safe.correctAnswers === "number")
       ) {
-        setDynamicResults(parsed)
+        // Fill defaults for missing numeric fields when possible
+        const final = {
+          score: typeof safe.score === "number" ? safe.score : Math.round(((safe.correctAnswers || 0) / (safe.totalQuestions || 1)) * 100),
+          correctAnswers: typeof safe.correctAnswers === "number" ? safe.correctAnswers : 0,
+          totalQuestions: typeof safe.totalQuestions === "number" ? safe.totalQuestions : safe.details ? safe.details.length : 0,
+          timeSpent: typeof safe.timeSpent === "number" ? safe.timeSpent : 0,
+          category: safe.category,
+          details: safe.details,
+        }
+        setDynamicResults(final as any)
 
         // Enviar al backend para persistir (y eliminar la clave para evitar reposts)
         const userId = typeof window !== "undefined" ? localStorage.getItem("userId") : null
+        const clientQuizId = typeof window !== 'undefined' ? sessionStorage.getItem('clientQuizId') : null
         if (userId) {
+          // usar los valores normalizados en `final` (no el raw parsed)
+          const body = {
+            userId: Number(userId),
+            score: final.score ?? parsed.score,
+            durationSeconds: final.timeSpent ?? parsed.timeSpent,
+            category: final.category ?? parsed.category ?? category,
+            clientQuizId: clientQuizId || undefined,
+            final: true,
+            details: final.details ?? parsed.details,
+          }
+
           fetch("/api/quiz/complete", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              userId: Number(userId),
-              score: parsed.score,
-              durationSeconds: parsed.timeSpent,
-              category: parsed.category || category,
-            }),
+            body: JSON.stringify(body),
           })
             .then(async (res) => {
               if (!res.ok) {
                 console.warn('POST /api/quiz/complete failed', await res.text())
                 return
               }
+              // parse posible xp devuelto por el servidor y actualizar la UI
+              try {
+                const data = await res.json()
+                if (data && typeof data.xpEarned === 'number') {
+                  setXpFromServer(Number(data.xpEarned))
+                }
+              } catch (e) {
+                // ignore JSON parse errors
+              }
               console.log('Quiz result sent to server successfully')
-              // remove stored result to avoid duplicate submissions
+              // remove stored result and clientQuizId to avoid duplicate submissions
               sessionStorage.removeItem("lastQuizResult")
+              sessionStorage.removeItem('clientQuizId')
               // opcional: refrescar la página para que el perfil muestre los cambios inmediatamente
               try {
                 if (typeof window !== 'undefined') {
-                  // Intencionadamente simple: recargar para que /profile haga fetch de nuevo
-                  // Puedes cambiar esto por una navegación /profile o por invalidación más fina
                   // router.push('/profile')
                 }
               } catch (e) {
@@ -150,8 +208,11 @@ export default function QuizResultsPage() {
         correctAnswers: dynamicResults.correctAnswers,
         totalQuestions: dynamicResults.totalQuestions,
         timeSpent: dynamicResults.timeSpent,
-        xpEarned: 0,
-        questions: resultsData.questions.slice(0, dynamicResults.totalQuestions),
+        xpEarned: xpFromServer ?? 0,
+        // Si vienen detalles reales, úsalos para el desglose; si no, cortar los datos de ejemplo
+        questions: dynamicResults.details
+          ? dynamicResults.details.map((d) => ({ id: d.id, question: d.question, correct: !!d.correct, selected: d.selected, correctAnswer: d.correctAnswer, options: d.options }))
+          : resultsData.questions.slice(0, dynamicResults.totalQuestions),
         newAchievements: resultsData.newAchievements,
         achievementProgress: resultsData.achievementProgress,
       }
@@ -247,9 +308,25 @@ export default function QuizResultsPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm text-foreground font-medium">
-                      {index + 1}. {q.question}
-                    </p>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-foreground font-medium">
+                        {index + 1}. {q.question}
+                      </p>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        {q.selected !== undefined && (
+                          <div>
+                            <strong className="text-foreground mr-1">Tu respuesta:</strong>
+                            <span>{String(q.selected)}</span>
+                          </div>
+                        )}
+                        {q.correctAnswer !== undefined && (
+                          <div>
+                            <strong className="text-foreground mr-1">Respuesta correcta:</strong>
+                            <span>{String(q.correctAnswer)}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                     <Badge
                       variant={q.correct ? "secondary" : "ghost"}
                       className={`${q.correct ? "" : "text-destructive"} shrink-0 text-xs`}

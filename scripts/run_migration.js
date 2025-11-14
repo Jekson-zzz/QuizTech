@@ -27,11 +27,10 @@ async function main() {
 
   const config = {
     host: process.env.DB_HOST || '127.0.0.1',
-    user: process.env.DB_USER || 'root',
+    user: process.env.DB_USER || 'quizz_user',
     password: process.env.DB_PASSWORD || 'mcSyjVSa20HSagsK',
-    database: process.env.DB_NAME || undefined,
+    database: process.env.DB_NAME || 'quizz-tech-backend',
     port: process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306,
-    multipleStatements: true,
   };
 
   if (!config.database) {

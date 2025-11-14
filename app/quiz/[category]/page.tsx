@@ -9,287 +9,207 @@ import { AnswerOptions } from "@/components/answer-options"
 import { Button } from "@/components/ui/button"
 import { CheckCircle } from "lucide-react"
 
-// Datos de ejemplo para el quiz
-const quizData = {
-  databases: {
-    title: "Bases de Datos",
-    color: "from-blue-500 to-cyan-500",
-    questions: [
-      {
-        id: 1,
-        type: "multiple",
-        question: "¿Cuál de las siguientes afirmaciones sobre normalización de bases de datos es correcta?",
-        options: [
-          "La primera forma normal (1NF) elimina dependencias transitivas",
-          "La segunda forma normal (2NF) requiere que todos los atributos no clave dependan de la clave completa",
-          "La tercera forma normal (3NF) permite valores nulos en la clave primaria",
-          "La forma normal de Boyce-Codd (BCNF) es menos restrictiva que 3NF",
-        ],
-        correctAnswer: 1,
-        hasCode: false,
-      },
-      {
-        id: 2,
-        type: "boolean",
-        question: "En SQL, la cláusula HAVING se utiliza para filtrar resultados antes de aplicar GROUP BY.",
-        hasCode: false,
-      },
-      {
-        id: 3,
-        type: "multiple",
-        question: "¿Qué resultado produce la siguiente consulta SQL?",
-        code: `SELECT COUNT(*) as total
-FROM usuarios u
-LEFT JOIN pedidos p ON u.id = p.usuario_id
-WHERE p.fecha > '2024-01-01'
-GROUP BY u.id
-HAVING COUNT(p.id) > 5;`,
-        codeLanguage: "sql",
-        options: [
-          "Cuenta todos los usuarios que tienen más de 5 pedidos después del 1 de enero de 2024",
-          "Cuenta el total de pedidos realizados después del 1 de enero de 2024",
-          "Muestra los usuarios con exactamente 5 pedidos",
-          "Genera un error de sintaxis",
-        ],
-        correctAnswer: 0,
-        hasCode: true,
-      },
-    ],
-  },
-  programming: {
-    title: "Programación",
-    color: "from-purple-500 to-pink-500",
-    questions: [
-      {
-        id: 1,
-        type: "multiple",
-        question: "¿Cuál es la complejidad temporal del siguiente algoritmo de búsqueda binaria?",
-        code: `function binarySearch(arr, target) {
-  let left = 0;
-  let right = arr.length - 1;
-  
-  while (left <= right) {
-    const mid = Math.floor((left + right) / 2);
-    if (arr[mid] === target) return mid;
-    if (arr[mid] < target) left = mid + 1;
-    else right = mid - 1;
-  }
-  return -1;
-}`,
-        codeLanguage: "javascript",
-        options: ["O(n)", "O(log n)", "O(n log n)", "O(1)"],
-        correctAnswer: 1,
-        hasCode: true,
-      },
-      {
-        id: 2,
-        type: "boolean",
-        question: "La herencia múltiple está permitida en Java.",
-        hasCode: false,
-      },
-    ],
-  },
-  networks: {
-    title: "Redes",
-    color: "from-green-500 to-emerald-500",
-    questions: [
-      {
-        id: 1,
-        type: "multiple",
-        question: "¿Qué protocolo opera en la capa de transporte del modelo OSI?",
-        options: ["HTTP", "TCP", "IP", "Ethernet"],
-        correctAnswer: 1,
-        hasCode: false,
-      },
-      {
-        id: 2,
-        type: "boolean",
-        question: "El protocolo HTTPS utiliza el puerto 443 por defecto.",
-        hasCode: false,
-      },
-      {
-        id: 3,
-        type: "multiple",
-        question: "Observa el siguiente diagrama de red. ¿Cuál es la topología representada?",
-        image: "/network-topology-star-diagram.jpg",
-        options: ["Topología en Bus", "Topología en Estrella", "Topología en Anillo", "Topología en Malla"],
-        correctAnswer: 1,
-        hasImage: true,
-      },
-    ],
-  },
-  architecture: {
-    title: "Arquitectura",
-    color: "from-orange-500 to-red-500",
-    questions: [
-      {
-        id: 1,
-        type: "multiple",
-        question: "¿Cuál de los siguientes NO es un principio SOLID?",
-        options: [
-          "Single Responsibility Principle",
-          "Open/Closed Principle",
-          "Liskov Substitution Principle",
-          "Dynamic Inheritance Principle",
-        ],
-        correctAnswer: 3,
-        hasCode: false,
-      },
-      {
-        id: 2,
-        type: "boolean",
-        question: "En el patrón MVC, el Controlador es responsable de la lógica de presentación.",
-        hasCode: false,
-      },
-      {
-        id: 3,
-        type: "multiple",
-        question: "Analiza el siguiente diagrama UML. ¿Qué patrón de diseño representa?",
-        image: "/uml-singleton-pattern-class-diagram.jpg",
-        options: ["Patrón Singleton", "Patrón Factory", "Patrón Observer", "Patrón Strategy"],
-        correctAnswer: 0,
-        hasImage: true,
-      },
-    ],
-  },
+type FetchedQuestion = {
+	id: number
+	question: string
+	type: string
+	options: Array<{ id: number; text: string; is_correct: number }>
 }
 
 export default function QuizPage() {
-  const params = useParams()
-  const router = useRouter()
-  const category = params.category as string
-  const [currentQuestion, setCurrentQuestion] = useState(0)
-  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null)
-  const [timeLeft, setTimeLeft] = useState(600) // 10 minutos en segundos
-  const [isAnswered, setIsAnswered] = useState(false)
-  const [correctCount, setCorrectCount] = useState(0)
-  const [answersCorrect, setAnswersCorrect] = useState<boolean[]>([])
+	const params = useParams()
+	const router = useRouter()
+	const category = params.category as string
+	const [currentQuestion, setCurrentQuestion] = useState(0)
+	const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null)
+	const TOTAL_TIME = 600 // 10 minutos en segundos
+	const [timeLeft, setTimeLeft] = useState(TOTAL_TIME)
+	const [isAnswered, setIsAnswered] = useState(false)
+	const [loading, setLoading] = useState(true)
+	const [quizTitle, setQuizTitle] = useState<string | null>(null)
+	const [questions, setQuestions] = useState<FetchedQuestion[]>([])
+	const [answers, setAnswers] = useState<Array<number | null>>([])
 
-  const quiz = quizData[category as keyof typeof quizData]
+	useEffect(() => {
+		let mounted = true
+		async function load() {
+			setLoading(true)
+			try {
+				const res = await fetch(`/api/quiz/${encodeURIComponent(category)}`)
+				if (res.status === 404) {
+					router.push('/')
+					return
+				}
+				const data = await res.json()
+				if (!mounted) return
+				if (data?.error) {
+					console.error('API error', data.error)
+					router.push('/')
+					return
+				}
+				setQuizTitle(data.category?.name || `Categoria ${category}`)
+				// Mapear preguntas al formato que el client espera
+				const mapped: FetchedQuestion[] = (data.questions || []).map((q: any) => ({
+					id: q.id,
+					question: q.question,
+					type: q.type || 'single',
+					options: q.options || [],
+				}))
+				setQuestions(mapped)
+				// inicializar array de respuestas
+				setAnswers(new Array(mapped.length).fill(null))
+			} catch (e) {
+				console.error(e)
+				router.push('/')
+			} finally {
+				if (mounted) setLoading(false)
+			}
+		}
+		load()
+		return () => { mounted = false }
+	}, [category, router])
 
-  useEffect(() => {
-    if (!quiz) {
-      router.push("/inicio")
-      return
-    }
+	useEffect(() => {
+		const timer = setInterval(() => {
+			setTimeLeft((prev) => {
+				if (prev <= 1) {
+					clearInterval(timer)
+					return 0
+				}
+				return prev - 1
+			})
+		}, 1000)
 
-    // inicializar el array de correctas según número de preguntas
-    setAnswersCorrect(Array(quiz.questions.length).fill(false))
+		return () => clearInterval(timer)
+	}, [])
 
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer)
-          // Aquí se podría manejar el fin del tiempo
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
+	// Generar clientQuizId para este intento y guardarlo en sessionStorage (por pestaña)
+	useEffect(() => {
+		try {
+			if (typeof window === 'undefined') return
+			const existing = sessionStorage.getItem('clientQuizId')
+			if (!existing) {
+				const id = 'quiz-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8)
+				sessionStorage.setItem('clientQuizId', id)
+			}
+		} catch (e) {
+			// noop
+		}
+	}, [])
 
-    return () => clearInterval(timer)
-  }, [quiz, router])
+	if (loading) {
+		return <div>Cargando quiz...</div>
+	}
 
-  if (!quiz) return null
+	if (!questions || questions.length === 0) {
+		return <div>No hay preguntas para esta categoría.</div>
+	}
 
-  const question = quiz.questions[currentQuestion]
-  const progress = ((currentQuestion + 1) / quiz.questions.length) * 100
+	const question = questions[currentQuestion]
+	const progress = ((currentQuestion + 1) / questions.length) * 100
 
-  const handleConfirm = () => {
-    if (selectedAnswer === null) return
-    setIsAnswered(true)
-    // Lógica de verificación de respuesta y registro en answersCorrect
-    const isCorrect = typeof question.correctAnswer === "number" && selectedAnswer === question.correctAnswer
-    if (isCorrect) setCorrectCount((c) => c + 1)
-    setAnswersCorrect((prev) => {
-      const copy = prev.slice()
-      copy[currentQuestion] = Boolean(isCorrect)
-      return copy
-    })
-  }
+	// calcular índice de respuesta correcta si existe (opcional)
+	const correctAnswerIndex = question.options.findIndex((o) => o.is_correct === 1)
 
-  const handleNext = () => {
-    if (currentQuestion < quiz.questions.length - 1) {
-      setCurrentQuestion(currentQuestion + 1)
-      setSelectedAnswer(null)
-      setIsAnswered(false)
-    } else {
-      // Calcular resultados y guardarlos temporalmente para la página de resultados
-  const totalQuestions = quiz.questions.length
-  // Usar el array answersCorrect para evitar condiciones de carrera en setState
-  const correctAnswers = answersCorrect.filter(Boolean).length
-  const score = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0
-      const timeSpent = 600 - timeLeft // segundos transcurridos
+	const handleConfirm = () => {
+		if (selectedAnswer === null) return
+		// Guardar respuesta en el array de respuestas
+		const next = [...answers]
+		next[currentQuestion] = selectedAnswer
+		setAnswers(next)
+		setIsAnswered(true)
+		// lógica adicional: podríamos POSTear respuestas al backend aquí
+	}
 
-      const payload = {
-        score,
-        correctAnswers,
-        totalQuestions,
-        timeSpent, // segundos
-        category,
-      }
+	const handleNext = () => {
+		if (currentQuestion < questions.length - 1) {
+			setCurrentQuestion(currentQuestion + 1)
+			// Restaurar selección previa si existe
+			setSelectedAnswer(answers[currentQuestion + 1] ?? null)
+			setIsAnswered(false)
+		} else {
+			// Finalizar: construir resultado y guardarlo en sessionStorage para la página de resultados
+			const totalQuestions = questions.length
+			let correctCount = 0
+			const details = questions.map((q, idx) => {
+				const sel = answers[idx]
+				const correctIdx = q.options.findIndex((o) => o.is_correct === 1)
+				const isCorrect = sel !== null && sel === correctIdx
+				if (isCorrect) correctCount++
+				return {
+					id: q.id,
+					question: q.question,
+					selected: sel,
+					correctAnswer: correctIdx,
+					correct: isCorrect,
+					options: q.options.map((o) => ({ id: o.id, text: o.text })),
+				}
+			})
+			const score = Math.round((correctCount / Math.max(1, totalQuestions)) * 100)
+			const timeSpent = TOTAL_TIME - timeLeft
+			const resultObj = {
+				score,
+				correctAnswers: correctCount,
+				totalQuestions,
+				timeSpent,
+				category,
+				details,
+			}
+			try {
+				if (typeof window !== 'undefined') sessionStorage.setItem('lastQuizResult', JSON.stringify(resultObj))
+			} catch (e) {
+				// noop
+			}
+			router.push(`/quiz/${category}/results`)
+		}
+	}
 
-      try {
-        if (typeof window !== "undefined") {
-          sessionStorage.setItem("lastQuizResult", JSON.stringify(payload))
-        }
-      } catch (e) {
-        // ignore sessionStorage errors
-      }
+	return (
+		<div className="min-h-screen bg-linear-to-br from-background via-background to-muted/20">
+			<QuizHeader categoryTitle={quizTitle || ''} timeLeft={timeLeft} color={'from-blue-500 to-cyan-500'} />
 
-      router.push(`/quiz/${category}/results`)
-    }
-  }
+			<div className="container mx-auto max-w-4xl px-4 py-6">
+				<QuizProgress current={currentQuestion + 1} total={questions.length} progress={progress} />
 
-  return (
-    <div className="min-h-screen bg-linear-to-br from-background via-background to-muted/20">
-      <QuizHeader categoryTitle={quiz.title} timeLeft={timeLeft} color={quiz.color} />
+				<div className="mt-6 space-y-6">
+					<QuestionDisplay
+						question={question.question}
+						hasCode={false}
+					/>
 
-      <div className="container mx-auto max-w-4xl px-4 py-6">
-        <QuizProgress current={currentQuestion + 1} total={quiz.questions.length} progress={progress} />
+					<AnswerOptions
+						type={question.type as "multiple" | "boolean"}
+						options={question.options.map((o) => o.text)}
+						selectedAnswer={selectedAnswer}
+						onSelect={setSelectedAnswer}
+						isAnswered={isAnswered}
+						correctAnswer={correctAnswerIndex}
+					/>
 
-        <div className="mt-6 space-y-6">
-          <QuestionDisplay
-            question={question.question}
-            code={'code' in question ? question.code : undefined}
-            codeLanguage={'codeLanguage' in question ? question.codeLanguage : undefined}
-            image={'image' in question ? question.image : undefined}
-            hasCode={question.hasCode}
-            hasImage={'hasImage' in question ? question.hasImage : false}
-          />
-
-          <AnswerOptions
-            type={question.type as "multiple" | "boolean"}
-            options={question.options}
-            selectedAnswer={selectedAnswer}
-            onSelect={setSelectedAnswer}
-            isAnswered={isAnswered}
-            correctAnswer={question.correctAnswer}
-          />
-
-          <div className="flex justify-end">
-            {!isAnswered ? (
-              <Button
-                size="lg"
-                onClick={handleConfirm}
-                disabled={selectedAnswer === null}
-                className="min-w-[200px] bg-linear-to-r from-primary to-accent hover:opacity-90"
-              >
-                <CheckCircle className="mr-2 h-5 w-5" />
-                Confirmar Respuesta
-              </Button>
-            ) : (
-              <Button
-                size="lg"
-                onClick={handleNext}
-                className="min-w-[200px] bg-linear-to-r from-primary to-accent hover:opacity-90"
-              >
-                {currentQuestion < quiz.questions.length - 1 ? "Siguiente Pregunta" : "Finalizar Quiz"}
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
+					<div className="flex justify-end">
+						{!isAnswered ? (
+							<Button
+								size="lg"
+								onClick={handleConfirm}
+								disabled={selectedAnswer === null}
+								className="min-w-[200px] bg-linear-to-r from-primary to-accent hover:opacity-90"
+							>
+								<CheckCircle className="mr-2 h-5 w-5" />
+								Confirmar Respuesta
+							</Button>
+						) : (
+							<Button
+								size="lg"
+								onClick={handleNext}
+								className="min-w-[200px] bg-linear-to-r from-primary to-accent hover:opacity-90"
+							>
+								{currentQuestion < questions.length - 1 ? "Siguiente Pregunta" : "Finalizar Quiz"}
+							</Button>
+						)}
+					</div>
+				</div>
+			</div>
+		</div>
+	)
 }
+
