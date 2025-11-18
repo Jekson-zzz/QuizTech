@@ -10,54 +10,21 @@ import { Trophy, Clock, Zap, CheckCircle, XCircle, Home, RotateCcw, Star, Target
 
 // Datos de ejemplo para los resultados
 const resultsData = {
-  score: 85,
-  correctAnswers: 17,
-  totalQuestions: 20,
-  timeSpent: 480, // en segundos (8 minutos)
-  xpEarned: 250,
+  score: 0,
+  correctAnswers: 0,
+  totalQuestions: 0,
+  timeSpent: 0, // en segundos (0 minutos)
+  xpEarned: 0,
   category: "Bases de Datos",
   categoryColor: "from-blue-500 to-cyan-500",
   questions: [
-    { id: 1, question: "¿Cuál es la diferencia entre INNER JOIN y LEFT JOIN?", correct: true },
-    { id: 2, question: "¿Qué es la normalización de bases de datos?", correct: true },
-    { id: 3, question: "¿Cuál es el propósito de una clave primaria?", correct: false },
-    { id: 4, question: "¿Qué significa ACID en bases de datos?", correct: true },
-    { id: 5, question: "¿Cuándo usar índices en una tabla?", correct: true },
-    { id: 6, question: "¿Qué es una transacción en SQL?", correct: true },
-    { id: 7, question: "¿Cuál es la diferencia entre DELETE y TRUNCATE?", correct: false },
-    { id: 8, question: "¿Qué es un procedimiento almacenado?", correct: true },
-    { id: 9, question: "¿Para qué sirve la cláusula GROUP BY?", correct: true },
-    { id: 10, question: "¿Qué es una vista en SQL?", correct: true },
-    { id: 11, question: "¿Cuál es la diferencia entre UNION y UNION ALL?", correct: true },
-    { id: 12, question: "¿Qué es un trigger en bases de datos?", correct: false },
-    { id: 13, question: "¿Cuándo usar una base de datos NoSQL?", correct: true },
-    { id: 14, question: "¿Qué es la desnormalización?", correct: true },
-    { id: 15, question: "¿Cuál es el propósito de las claves foráneas?", correct: true },
-    { id: 16, question: "¿Qué es un deadlock?", correct: true },
-    { id: 17, question: "¿Cuál es la diferencia entre VARCHAR y CHAR?", correct: true },
-    { id: 18, question: "¿Qué es el modelo entidad-relación?", correct: true },
-    { id: 19, question: "¿Para qué sirve la cláusula HAVING?", correct: true },
-    { id: 20, question: "¿Qué es la integridad referencial?", correct: true },
+
   ],
   newAchievements: [
-    {
-      id: "speed",
-      title: "Velocista",
-      description: "Completaste el quiz en menos de 10 minutos",
-      icon: Zap,
-      color: "text-chart-4",
-      bgColor: "bg-chart-4/10",
-    },
+ 
   ],
   achievementProgress: [
-    {
-      id: "perfectionist",
-      title: "Perfeccionista",
-      description: "Obtén 100% en un quiz",
-      progress: 85,
-      maxProgress: 100,
-      icon: Target,
-    },
+
   ],
 }
 
@@ -82,6 +49,9 @@ export default function QuizResultsPage() {
       options?: Array<{ id: number; text: string }>
     }>
   }>(null)
+  const [serverNewAchievements, setServerNewAchievements] = useState<any[]>([])
+  const [serverAchievementProgress, setServerAchievementProgress] = useState<any[]>([])
+  const [serverXpEarned, setServerXpEarned] = useState<number | null>(null)
 
   useEffect(() => {
     try {
@@ -144,6 +114,81 @@ export default function QuizResultsPage() {
               console.warn('POST /api/quiz/complete failed', await res.text())
               return
             }
+            const resultsData = await res.json()
+            // server returns newAchievements (basic data). Map to UI-friendly objects.
+            try {
+              const raw = Array.isArray(resultsData.newAchievements) ? resultsData.newAchievements : []
+              const mapped = raw.map((a: any) => ({
+                id: a.id || a.key || JSON.stringify(a),
+                title: a.title || a.key || 'Logro',
+                description: a.description || '',
+                // use default icon/colors for server-sent achievements
+                icon: Trophy,
+                color: 'text-primary',
+                bgColor: 'bg-primary/10',
+              }))
+              setServerNewAchievements(mapped)
+              // ahora solicitar progreso cercano para el usuario (top 3)
+              try {
+                const uid = String(userId)
+                const achRes = await fetch(`/api/achievements?id=${encodeURIComponent(uid)}`)
+                if (achRes.ok) {
+                          const achData = await achRes.json()
+                          console.log('DEBUG /api/achievements response:', achData)
+                  const list = Array.isArray(achData.achievements) ? achData.achievements : []
+                  const mappedProg = list.map((a: any) => {
+                    let progress = undefined as number | undefined
+                    let maxProgress = undefined as number | undefined
+                    if (a.extra && typeof a.extra === 'object') {
+                      if (typeof a.extra.progress === 'number') progress = a.extra.progress
+                      if (typeof a.extra.target === 'number') maxProgress = a.extra.target
+                    }
+                    if (maxProgress === undefined && a.criteria) {
+                      if (typeof a.criteria.count === 'number') maxProgress = a.criteria.count
+                      if (typeof a.criteria.days === 'number') maxProgress = a.criteria.days
+                      if (typeof a.criteria.level === 'number') maxProgress = a.criteria.level
+                      if (typeof a.criteria.score === 'number') maxProgress = a.criteria.score
+                    }
+                    // If achievement is score-based, derive progress from the best of prior progress and this quiz score
+                    try {
+                      const quizScore = typeof final?.score === 'number' ? final.score : undefined
+                      if (typeof quizScore === 'number' && typeof maxProgress === 'number' && a.criteria && typeof a.criteria.score === 'number') {
+                        const candidate = Math.min(quizScore, maxProgress)
+                        if (typeof progress === 'number') {
+                          progress = Math.max(progress, candidate)
+                        } else {
+                          progress = candidate
+                        }
+                      }
+                    } catch (e) {
+                      // ignore
+                    }
+                    return {
+                      id: a.id,
+                      key: a.key,
+                      title: a.title,
+                      description: a.description,
+                      unlocked: !!a.unlocked,
+                      progress,
+                      maxProgress,
+                    }
+                  })
+                  const near = mappedProg
+                    .filter((a: any) => !a.unlocked && typeof a.progress === 'number' && typeof a.maxProgress === 'number' && a.progress < a.maxProgress)
+                    .map((a: any) => ({ ...a, pct: a.progress / a.maxProgress }))
+                    .sort((x: any, y: any) => y.pct - x.pct)
+                    .slice(0, 3)
+                          console.log('DEBUG mappedProg:', mappedProg)
+                          console.log('DEBUG near(top3):', near)
+                  setServerAchievementProgress(near)
+                }
+              } catch (e) {
+                // ignore
+              }
+            } catch (e) {
+              setServerNewAchievements([])
+            }
+            try { setServerXpEarned(typeof resultsData.xpEarned === 'number' ? Number(resultsData.xpEarned) : null) } catch (e) { setServerXpEarned(null) }
             sessionStorage.removeItem("lastQuizResult")
             sessionStorage.removeItem('clientQuizId')
           }).catch((err) => {
@@ -175,8 +220,8 @@ export default function QuizResultsPage() {
         questions: dynamicResults.details
           ? dynamicResults.details.map((d) => ({ id: d.id, question: d.question, correct: !!d.correct, selected: d.selected, correctAnswer: d.correctAnswer, options: d.options }))
           : resultsData.questions.slice(0, dynamicResults.totalQuestions),
-        newAchievements: resultsData.newAchievements,
-        achievementProgress: resultsData.achievementProgress,
+        newAchievements: serverNewAchievements.length > 0 ? serverNewAchievements : [],
+        achievementProgress: serverAchievementProgress.length > 0 ? serverAchievementProgress : (resultsData.achievementProgress || []),
       }
     : resultsData
 
@@ -303,22 +348,24 @@ export default function QuizResultsPage() {
         </Card>
 
         {/* Logros Desbloqueados */}
-        {newAchievements.length > 0 && (
+        {(serverNewAchievements.length > 0 ? serverNewAchievements : newAchievements).length > 0 && (
           <Card className="p-6 mb-6 border-2 bg-linear-to-br from-primary/5 to-accent/5">
             <h2 className="text-xl font-bold text-foreground mb-4 flex items-center">
               <Trophy className="w-5 h-5 mr-2 text-primary" />
               ¡Nuevos Logros Desbloqueados!
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {newAchievements.map((achievement) => {
-                const Icon = achievement.icon
+              {(serverNewAchievements.length > 0 ? serverNewAchievements : newAchievements).map((achievement) => {
+                const Icon = achievement.icon || Trophy
+                const bg = achievement.bgColor || 'bg-primary/10'
+                const color = achievement.color || 'text-primary'
                 return (
                   <div
                     key={achievement.id}
                     className="flex items-center gap-4 p-4 rounded-lg bg-card border-2 border-primary/20 shadow-sm"
                   >
-                    <div className={`flex h-14 w-14 items-center justify-center rounded-xl ${achievement.bgColor}`}>
-                      <Icon className={`h-7 w-7 ${achievement.color}`} />
+                    <div className={`flex h-14 w-14 items-center justify-center rounded-xl ${bg}`}>
+                      <Icon className={`h-7 w-7 ${color}`} />
                     </div>
                     <div className="flex-1">
                       <h3 className="font-bold text-foreground">{achievement.title}</h3>
@@ -341,7 +388,7 @@ export default function QuizResultsPage() {
             </h2>
             <div className="space-y-4">
               {achievementProgress.map((achievement) => {
-                const Icon = achievement.icon
+                const Icon = achievement.icon || Target
                 const progressPercent = (achievement.progress / achievement.maxProgress) * 100
                 return (
                   <div key={achievement.id} className="flex items-start gap-4">

@@ -41,9 +41,24 @@ export async function GET(req: Request) {
       }
     }
 
-    await conn.end();
+    if (!user) {
+      await conn.end();
+      return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
+    }
 
-    if (!user) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
+    // Intentamos sumar el tiempo total de los quizzes del usuario (en segundos), si la tabla existe
+    let totalSeconds = 0
+    try {
+      const [totRows] = await conn.execute('SELECT COALESCE(SUM(duration_seconds),0) as total_seconds FROM `user_quizzes` WHERE user_id = ?', [user.id])
+      const tr = Array.isArray(totRows) && totRows.length ? (totRows as any)[0] : null
+      totalSeconds = tr ? Number(tr.total_seconds || 0) : 0
+    } catch (e) {
+      // Si falla (tabla/columna no existe), ignoramos y devolvemos 0
+      console.warn('No se pudo calcular tiempo total de quizzes:', e && (e as any).message ? (e as any).message : e)
+      totalSeconds = 0
+    }
+
+    await conn.end();
 
     // Añadimos también campos agregados si existen
     return NextResponse.json({
@@ -56,8 +71,10 @@ export async function GET(req: Request) {
         currentXP: user.current_xp,
         xpToNextLevel: user.xp_to_next_level,
         streak: user.streak,
-  quizzesCompleted: user.quizzes_completed ?? null,
-  averageScore: user.average_score ?? null,
+        quizzesCompleted: user.quizzes_completed ?? null,
+        averageScore: user.average_score ?? null,
+        // tiempoActivo en minutos (redondeado)
+        tiempoActivo: Math.round(Number(totalSeconds || 0) / 60),
       },
     });
   } catch (err: any) {

@@ -1,13 +1,14 @@
 "use client"
 
 import { Card } from "@/components/ui/card"
-import { CheckCircle2, Target, Flame } from "lucide-react"
+import { CheckCircle2, Target, Flame, Clock } from "lucide-react"
 
 interface StatsGridProps {
   stats: {
     quizzesCompleted: number
     averageScore: number
     streak: number
+    tiempoActivo?: number
   }
 }
 
@@ -31,6 +32,13 @@ export function StatsGrid({ stats }: StatsGridProps) {
       icon: Flame,
       label: "Racha de Días",
       value: `${stats.streak} días`,
+      color: "from-chart-3 to-chart-3/70",
+      bgColor: "bg-chart-3/10",
+    },
+    {
+      icon: Clock,
+      label: "Tiempo en Quizzes",
+      value: `${stats.tiempoActivo ?? 0} minutos`,
       color: "from-chart-3 to-chart-3/70",
       bgColor: "bg-chart-3/10",
     },

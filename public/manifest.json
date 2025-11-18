@@ -1,0 +1,20 @@
+{
+  "name": "QuizTech - Ingeniería de Sistemas",
+  "short_name": "QuizTech",
+  "description": "Aplicación de quiz educativa para estudiantes de ingeniería de sistemas",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#06B6D4",
+  "categories": ["education", "games"],
+  "icons": [
+    {
+      "src": "/icons/brain-logo.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

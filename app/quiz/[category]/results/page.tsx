@@ -10,54 +10,21 @@ import { Trophy, Clock, Zap, CheckCircle, XCircle, Home, RotateCcw, Star, Target
 
 // Datos de ejemplo para los resultados
 const resultsData = {
-  score: 85,
-  correctAnswers: 17,
-  totalQuestions: 20,
-  timeSpent: 480, // en segundos (8 minutos)
-  xpEarned: 250,
+  score: 0,
+  correctAnswers: 0,
+  totalQuestions: 0,
+  timeSpent: 0, // en segundos (0 minutos)
+  xpEarned: 0,
   category: "Bases de Datos",
   categoryColor: "from-blue-500 to-cyan-500",
   questions: [
-    { id: 1, question: "¿Cuál es la diferencia entre INNER JOIN y LEFT JOIN?", correct: true },
-    { id: 2, question: "¿Qué es la normalización de bases de datos?", correct: true },
-    { id: 3, question: "¿Cuál es el propósito de una clave primaria?", correct: false },
-    { id: 4, question: "¿Qué significa ACID en bases de datos?", correct: true },
-    { id: 5, question: "¿Cuándo usar índices en una tabla?", correct: true },
-    { id: 6, question: "¿Qué es una transacción en SQL?", correct: true },
-    { id: 7, question: "¿Cuál es la diferencia entre DELETE y TRUNCATE?", correct: false },
-    { id: 8, question: "¿Qué es un procedimiento almacenado?", correct: true },
-    { id: 9, question: "¿Para qué sirve la cláusula GROUP BY?", correct: true },
-    { id: 10, question: "¿Qué es una vista en SQL?", correct: true },
-    { id: 11, question: "¿Cuál es la diferencia entre UNION y UNION ALL?", correct: true },
-    { id: 12, question: "¿Qué es un trigger en bases de datos?", correct: false },
-    { id: 13, question: "¿Cuándo usar una base de datos NoSQL?", correct: true },
-    { id: 14, question: "¿Qué es la desnormalización?", correct: true },
-    { id: 15, question: "¿Cuál es el propósito de las claves foráneas?", correct: true },
-    { id: 16, question: "¿Qué es un deadlock?", correct: true },
-    { id: 17, question: "¿Cuál es la diferencia entre VARCHAR y CHAR?", correct: true },
-    { id: 18, question: "¿Qué es el modelo entidad-relación?", correct: true },
-    { id: 19, question: "¿Para qué sirve la cláusula HAVING?", correct: true },
-    { id: 20, question: "¿Qué es la integridad referencial?", correct: true },
+  
   ],
   newAchievements: [
-    {
-      id: "speed",
-      title: "Velocista",
-      description: "Completaste el quiz en menos de 10 minutos",
-      icon: Zap,
-      color: "text-chart-4",
-      bgColor: "bg-chart-4/10",
-    },
+   
   ],
   achievementProgress: [
-    {
-      id: "perfectionist",
-      title: "Perfeccionista",
-      description: "Obtén 100% en un quiz",
-      progress: 85,
-      maxProgress: 100,
-      icon: Target,
-    },
+
   ],
 }
 
@@ -84,6 +51,8 @@ export default function QuizResultsPage() {
     }>
   }>(null)
   const [xpFromServer, setXpFromServer] = useState<number | null>(null)
+  const [serverNewAchievements, setServerNewAchievements] = useState<any[]>([])
+  const [serverAchievementProgress, setServerAchievementProgress] = useState<any[]>([])
 
   useEffect(() => {
     try {
@@ -136,54 +105,175 @@ export default function QuizResultsPage() {
         // Enviar al backend para persistir (y eliminar la clave para evitar reposts)
         const userId = typeof window !== "undefined" ? localStorage.getItem("userId") : null
         const clientQuizId = typeof window !== 'undefined' ? sessionStorage.getItem('clientQuizId') : null
-        if (userId) {
-          // usar los valores normalizados en `final` (no el raw parsed)
-          const body = {
-            userId: Number(userId),
-            score: final.score ?? parsed.score,
-            durationSeconds: final.timeSpent ?? parsed.timeSpent,
-            category: final.category ?? parsed.category ?? category,
-            clientQuizId: clientQuizId || undefined,
-            final: true,
-            details: final.details ?? parsed.details,
-          }
+          if (userId) {
+          // Evitar envíos duplicados desde el cliente (p. ej. React Strict Mode que ejecuta useEffect dos veces)
+          try {
+            const alreadySending = typeof window !== 'undefined' ? sessionStorage.getItem('quizSending') : null
+            if (alreadySending) {
+              console.log('Skipping duplicate quiz submit (quizSending flag present)')
+            } else {
+              if (typeof window !== 'undefined') sessionStorage.setItem('quizSending', '1')
 
-          fetch("/api/quiz/complete", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          })
-            .then(async (res) => {
-              if (!res.ok) {
-                console.warn('POST /api/quiz/complete failed', await res.text())
-                return
+              // usar los valores normalizados en `final` (no el raw parsed)
+              const body = {
+                userId: Number(userId),
+                score: final.score ?? parsed.score,
+                durationSeconds: final.timeSpent ?? parsed.timeSpent,
+                category: final.category ?? parsed.category ?? category,
+                clientQuizId: clientQuizId || undefined,
+                final: true,
+                details: final.details ?? parsed.details,
               }
-              // parse posible xp devuelto por el servidor y actualizar la UI
-              try {
-                const data = await res.json()
-                if (data && typeof data.xpEarned === 'number') {
-                  setXpFromServer(Number(data.xpEarned))
-                }
-              } catch (e) {
-                // ignore JSON parse errors
-              }
-              console.log('Quiz result sent to server successfully')
-              // remove stored result and clientQuizId to avoid duplicate submissions
-              sessionStorage.removeItem("lastQuizResult")
-              sessionStorage.removeItem('clientQuizId')
-              // opcional: refrescar la página para que el perfil muestre los cambios inmediatamente
-              try {
-                if (typeof window !== 'undefined') {
-                  // router.push('/profile')
-                }
-              } catch (e) {
-                // ignore
-              }
+
+              fetch("/api/quiz/complete", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+              })
+                .then(async (res) => {
+                  if (!res.ok) {
+                    console.warn('POST /api/quiz/complete failed', await res.text())
+                    return
+                  }
+                  // parse posible xp devuelto por el servidor y actualizar la UI
+                  try {
+                    const data = await res.json()
+                    if (data && typeof data.xpEarned === 'number') {
+                      setXpFromServer(Number(data.xpEarned))
+                    }
+                    // Map server-sent newAchievements to UI-friendly objects when present
+                    try {
+                      const raw = Array.isArray(data?.newAchievements) ? data.newAchievements : []
+                      const mapped = raw.map((a: any) => ({
+                        id: a.id || a.key || JSON.stringify(a),
+                        title: a.title || a.key || 'Logro',
+                        description: a.description || '',
+                        icon: Trophy,
+                        color: 'text-primary',
+                        bgColor: 'bg-primary/10',
+                      }))
+                      setServerNewAchievements(mapped)
+                      // fetch top ~3 in-progress achievements for this user
+                      try {
+                        const uid = String(userId)
+                        const achRes = await fetch(`/api/achievements?id=${encodeURIComponent(uid)}`)
+                        if (achRes.ok) {
+                          const achData = await achRes.json()
+                          console.log('DEBUG /api/achievements response:', achData)
+                          const list = Array.isArray(achData.achievements) ? achData.achievements : []
+                          const mappedProg = list.map((a: any) => {
+                            let progress = undefined as number | undefined
+                            let maxProgress = undefined as number | undefined
+                            if (a.extra && typeof a.extra === 'object') {
+                              if (typeof a.extra.progress === 'number') progress = a.extra.progress
+                              if (typeof a.extra.target === 'number') maxProgress = a.extra.target
+                            }
+                            if (maxProgress === undefined && a.criteria) {
+                              if (typeof a.criteria.count === 'number') maxProgress = a.criteria.count
+                              if (typeof a.criteria.days === 'number') maxProgress = a.criteria.days
+                              if (typeof a.criteria.level === 'number') maxProgress = a.criteria.level
+                              if (typeof a.criteria.score === 'number') maxProgress = a.criteria.score
+                            }
+                            // If achievement is score-based, derive progress from the best of prior progress and this quiz score
+                            try {
+                              const quizScore = typeof final?.score === 'number' ? final.score : undefined
+                              if (typeof quizScore === 'number' && typeof maxProgress === 'number' && a.criteria && typeof a.criteria.score === 'number') {
+                                const candidate = Math.min(quizScore, maxProgress)
+                                if (typeof progress === 'number') {
+                                  progress = Math.max(progress, candidate)
+                                } else {
+                                  progress = candidate
+                                }
+                              }
+                            } catch (e) {
+                              // ignore
+                            }
+                            return {
+                              id: a.id,
+                              key: a.key,
+                              title: a.title,
+                              description: a.description,
+                              unlocked: !!a.unlocked,
+                              progress,
+                              maxProgress,
+                            }
+                          })
+                          const near = mappedProg
+                            .filter((a: any) => !a.unlocked && typeof a.progress === 'number' && typeof a.maxProgress === 'number' && a.progress < a.maxProgress)
+                            .map((a: any) => ({ ...a, pct: a.progress / a.maxProgress }))
+                            .sort((x: any, y: any) => y.pct - x.pct)
+                            .slice(0, 3)
+                          console.log('DEBUG mappedProg:', mappedProg)
+                          console.log('DEBUG near(top3):', near)
+                          setServerAchievementProgress(near)
+                        }
+                      } catch (e) {
+                        // ignore
+                      }
+                    } catch (e) {
+                      setServerNewAchievements([])
+                    }
+                    // opcional: incluir datos de depuración
+                    if (data && typeof data.insertedUserAnswers === 'number') {
+                      console.log('Server reports insertedUserAnswers=', data.insertedUserAnswers, 'insertedUserQuizId=', data.insertedUserQuizId)
+                    }
+                  } catch (e) {
+                    // ignore JSON parse errors
+                  }
+                  console.log('Quiz result sent to server successfully')
+                  // remove stored result and clientQuizId to avoid duplicate submissions
+                  sessionStorage.removeItem("lastQuizResult")
+                  sessionStorage.removeItem('clientQuizId')
+                  sessionStorage.removeItem('quizSending')
+                  // opcional: refrescar la página para que el perfil muestre los cambios inmediatamente
+                  try {
+                    if (typeof window !== 'undefined') {
+                      // router.push('/profile')
+                    }
+                  } catch (e) {
+                    // ignore
+                  }
+                })
+                .catch((err) => {
+                  console.warn('Network error sending quiz result:', err)
+                  // keep stored result so user can retry by reloading
+                  sessionStorage.removeItem('quizSending')
+                })
+            }
+          } catch (e) {
+            // safety: if sessionStorage access falla, seguir con el envío
+            console.warn('Error checking quizSending flag:', e)
+            const body = {
+              userId: Number(userId),
+              score: final.score ?? parsed.score,
+              durationSeconds: final.timeSpent ?? parsed.timeSpent,
+              category: final.category ?? parsed.category ?? category,
+              clientQuizId: clientQuizId || undefined,
+              final: true,
+              details: final.details ?? parsed.details,
+            }
+
+            fetch("/api/quiz/complete", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
             })
-            .catch((err) => {
-              console.warn('Network error sending quiz result:', err)
-              // keep stored result so user can retry by reloading
-            })
+              .then(async (res) => {
+                if (!res.ok) {
+                  console.warn('POST /api/quiz/complete failed', await res.text())
+                  return
+                }
+                try {
+                  const data = await res.json()
+                  if (data && typeof data.xpEarned === 'number') setXpFromServer(Number(data.xpEarned))
+                } catch (e) {}
+                sessionStorage.removeItem("lastQuizResult")
+                sessionStorage.removeItem('clientQuizId')
+              })
+              .catch((err) => {
+                console.warn('Network error sending quiz result:', err)
+              })
+          }
         } else {
           console.warn('No userId found in localStorage; quiz result saved in sessionStorage for later delivery')
         }
@@ -213,8 +303,8 @@ export default function QuizResultsPage() {
         questions: dynamicResults.details
           ? dynamicResults.details.map((d) => ({ id: d.id, question: d.question, correct: !!d.correct, selected: d.selected, correctAnswer: d.correctAnswer, options: d.options }))
           : resultsData.questions.slice(0, dynamicResults.totalQuestions),
-        newAchievements: resultsData.newAchievements,
-        achievementProgress: resultsData.achievementProgress,
+        newAchievements: serverNewAchievements.length > 0 ? serverNewAchievements : [],
+        achievementProgress: serverAchievementProgress.length > 0 ? serverAchievementProgress : (resultsData.achievementProgress || []),
       }
     : resultsData
 
@@ -223,7 +313,7 @@ export default function QuizResultsPage() {
     if (score >= 90) return { text: "¡Excelente!", color: "text-chart-3", emoji: "🎉" }
     if (score >= 70) return { text: "¡Bien Hecho!", color: "text-primary", emoji: "👏" }
     if (score >= 50) return { text: "Puedes Mejorar", color: "text-chart-4", emoji: "💪" }
-    return { text: "Sigue Practicando", color: "text-muted-foreground", emoji: "📚" }
+    return { text: "Hay que estudiar", color: "text-muted-foreground", emoji: "📚" }
   }
 
   const performance = getPerformanceMessage(score)
@@ -244,7 +334,7 @@ export default function QuizResultsPage() {
             <Trophy className="w-10 h-10 text-primary-foreground" />
           </div>
           <h1 className={`text-4xl md:text-5xl font-bold mb-2 ${performance.color}`}>
-            {performance.emoji} {performance.text}
+            {performance.text}{performance.emoji}
           </h1>
           <p className="text-muted-foreground text-lg">Has completado el quiz de {resultsData.category}</p>
         </div>
@@ -313,16 +403,16 @@ export default function QuizResultsPage() {
                         {index + 1}. {q.question}
                       </p>
                       <div className="mt-1 text-xs text-muted-foreground">
-                        {q.selected !== undefined && (
+                        {(q as any).selected !== undefined && (
                           <div>
                             <strong className="text-foreground mr-1">Tu respuesta:</strong>
-                            <span>{String(q.selected)}</span>
+                            <span>{String((q as any).selected)}</span>
                           </div>
                         )}
-                        {q.correctAnswer !== undefined && (
+                        {(q as any).correctAnswer !== undefined && (
                           <div>
                             <strong className="text-foreground mr-1">Respuesta correcta:</strong>
-                            <span>{String(q.correctAnswer)}</span>
+                            <span>{String((q as any).correctAnswer)}</span>
                           </div>
                         )}
                       </div>
@@ -379,7 +469,7 @@ export default function QuizResultsPage() {
             </h2>
             <div className="space-y-4">
               {achievementProgress.map((achievement) => {
-                const Icon = achievement.icon
+                const Icon = achievement.icon || Target
                 const progressPercent = (achievement.progress / achievement.maxProgress) * 100
                 return (
                   <div key={achievement.id} className="flex items-start gap-4">

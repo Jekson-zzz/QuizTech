@@ -3,7 +3,7 @@
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { type Trophy, Star, Zap, Target, Award, Flame, BookOpen } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
 
@@ -22,88 +22,90 @@ interface Achievement {
 
 export function AchievementsSection() {
   const [selectedAchievement, setSelectedAchievement] = useState<Achievement | null>(null)
+  const [achievements, setAchievements] = useState<Achievement[] | null>(null)
+  const [loading, setLoading] = useState(false)
 
-  const achievements: Achievement[] = [
-    {
-      id: "1",
-      title: "Primer Paso",
-      description: "Completa tu primer quiz",
-      icon: Star,
-      color: "text-primary",
-      bgColor: "bg-primary/10",
-      unlocked: true,
-      progress: 1,
-      maxProgress: 1,
-      requirement: "Completa 1 quiz",
-    },
-    {
-      id: "2",
-      title: "Racha de Fuego",
-      description: "Mantén una racha de 7 días",
-      icon: Flame,
-      color: "text-chart-3",
-      bgColor: "bg-chart-3/10",
-      unlocked: true,
-      progress: 15,
-      maxProgress: 7,
-      requirement: "Estudia durante 7 días consecutivos",
-    },
-    {
-      id: "3",
-      title: "Perfeccionista",
-      description: "Obtén 100% en un quiz",
-      icon: Target,
-      color: "text-accent",
-      bgColor: "bg-accent/10",
-      unlocked: false,
-      progress: 95,
-      maxProgress: 100,
-      requirement: "Responde correctamente todas las preguntas de un quiz",
-    },
-    {
-      id: "4",
-      title: "Velocista",
-      description: "Completa 10 quizzes en un día",
-      icon: Zap,
-      color: "text-chart-4",
-      bgColor: "bg-chart-4/10",
-      unlocked: false,
-      progress: 3,
-      maxProgress: 10,
-      requirement: "Completa 10 quizzes en un solo día",
-    },
-    {
-      id: "5",
-      title: "Maestro",
-      description: "Alcanza el nivel 20",
-      icon: Award,
-      color: "text-chart-5",
-      bgColor: "bg-chart-5/10",
-      unlocked: false,
-      progress: 12,
-      maxProgress: 20,
-      requirement: "Alcanza el nivel 20",
-    },
-    {
-      id: "6",
-      title: "Experto en BD",
-      description: "Completa todos los quizzes de Bases de Datos",
-      icon: BookOpen,
-      color: "text-primary",
-      bgColor: "bg-primary/10",
-      unlocked: false,
-      progress: 8,
-      maxProgress: 15,
-      requirement: "Completa los 15 quizzes de la categoría Bases de Datos",
-    },
-  ]
+  // Mapear claves de logros a iconos locales y estilos
+  const iconMap: Record<string, { icon: any; color: string; bgColor: string }> = {
+    first_quiz: { icon: Star, color: 'text-primary', bgColor: 'bg-primary/10' },
+    streak_7: { icon: Flame, color: 'text-chart-3', bgColor: 'bg-chart-3/10' },
+    perfect_quiz: { icon: Target, color: 'text-accent', bgColor: 'bg-accent/10' },
+    fast_10: { icon: Zap, color: 'text-chart-4', bgColor: 'bg-chart-4/10' },
+    level_50: { icon: Award, color: 'text-chart-5', bgColor: 'bg-chart-5/10' },
+    complete_all: { icon: BookOpen, color: 'text-primary', bgColor: 'bg-primary/10' },
+  }
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true)
+      try {
+        const userId = typeof window !== 'undefined' ? localStorage.getItem('userId') : null
+        const url = '/api/achievements' + (userId ? `?id=${encodeURIComponent(userId)}` : '')
+        const res = await fetch(url)
+        if (!res.ok) {
+          console.warn('Failed to load achievements', await res.text())
+          setAchievements([])
+          setLoading(false)
+          return
+        }
+        const data = await res.json()
+        const list = Array.isArray(data.achievements) ? data.achievements : []
+
+        const mapped: Achievement[] = list.map((a: any) => {
+          const map = iconMap[a.key] || { icon: Star, color: 'text-muted-foreground', bgColor: 'bg-muted' }
+
+          // intentar derivar progreso desde extra o criteria
+          let progress = undefined as number | undefined
+          let maxProgress = undefined as number | undefined
+          if (a.extra && typeof a.extra === 'object') {
+            if (typeof a.extra.progress === 'number') progress = a.extra.progress
+            if (typeof a.extra.target === 'number') maxProgress = a.extra.target
+          }
+          // criterios comunes
+          if (maxProgress === undefined && a.criteria) {
+            if (typeof a.criteria.count === 'number') maxProgress = a.criteria.count
+            if (typeof a.criteria.days === 'number') maxProgress = a.criteria.days
+            if (typeof a.criteria.level === 'number') maxProgress = a.criteria.level
+            if (typeof a.criteria.score === 'number') maxProgress = a.criteria.score
+          }
+
+          // Si progress no viene pero logro está desbloqueado, mostrar progreso = max
+          if (progress === undefined && a.unlocked && typeof maxProgress === 'number') progress = maxProgress
+
+          return {
+            id: String(a.id),
+            title: a.title,
+            description: a.description,
+            icon: map.icon,
+            color: map.color,
+            bgColor: map.bgColor,
+            unlocked: !!a.unlocked,
+            progress,
+            maxProgress,
+            requirement: a.criteria ? JSON.stringify(a.criteria) : '',
+          }
+        })
+
+        setAchievements(mapped)
+      } catch (e) {
+        console.error(e)
+        setAchievements([])
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [])
+
+  // if achievements not yet loaded, show empty placeholder
+  const visibleAchievements = achievements ?? []
 
   return (
     <>
       <div className="mb-6">
         <h2 className="text-xl font-bold text-foreground mb-4">Logros</h2>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {achievements.map((achievement) => {
+          {visibleAchievements.map((achievement) => {
             const Icon = achievement.icon
             return (
               <Card
@@ -158,14 +160,13 @@ export function AchievementsSection() {
                 </>
               )}
             </div>
-            <DialogDescription className="text-base">{selectedAchievement?.description}</DialogDescription>
           </DialogHeader>
 
           {selectedAchievement && (
             <div className="space-y-4 mt-4">
               <div>
                 <h4 className="font-semibold text-sm text-foreground mb-2">Requisito:</h4>
-                <p className="text-sm text-muted-foreground">{selectedAchievement.requirement}</p>
+                <p className="text-sm text-muted-foreground">{selectedAchievement.description}</p>
               </div>
 
               {selectedAchievement.progress !== undefined && selectedAchievement.maxProgress && (

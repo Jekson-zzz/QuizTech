@@ -18,6 +18,7 @@ export default function ProfilePage() {
       quizzesCompleted: 0,
       averageScore: 0,
       streak: 0,
+      tiempoActivo: 0,
     },
   })
   const [loading, setLoading] = React.useState(true)
@@ -44,6 +45,7 @@ export default function ProfilePage() {
               quizzesCompleted: typeof data.user.quizzesCompleted === 'number' ? data.user.quizzesCompleted : prev.stats.quizzesCompleted,
               averageScore: typeof data.user.averageScore === 'number' ? Math.round(data.user.averageScore) : prev.stats.averageScore,
               streak: typeof data.user.streak === 'number' ? data.user.streak : prev.stats.streak,
+              tiempoActivo: typeof data.user.tiempoActivo === 'number' ? data.user.tiempoActivo : prev.stats.tiempoActivo,
             },
           }))
         }
