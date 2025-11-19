@@ -38,7 +38,8 @@ export async function POST(req: Request) {
 
     if (!user) {
       await conn.end();
-      return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
+      // Mensaje genérico para no revelar si el usuario/email existe
+      return NextResponse.json({ error: 'Usuario o correo incorrectos' }, { status: 401 });
     }
 
     // Verificar si la cuenta está bloqueada
@@ -79,8 +80,9 @@ export async function POST(req: Request) {
         } else {
           await conn.execute('UPDATE `profile_data` SET failed_attempts = ? WHERE id = ?', [currentAttempts, user.id]);
           await conn.end();
+          // Mensaje genérico para no revelar si el usuario/email existe o la contraseña es incorrecta
           return NextResponse.json(
-            { error: 'Contraseña inválida', attemptsLeft: Math.max(0, MAX_ATTEMPTS - currentAttempts) },
+            { error: 'Usuario o correo no es correcto', attemptsLeft: Math.max(0, MAX_ATTEMPTS - currentAttempts) },
             { status: 401 }
           );
         }

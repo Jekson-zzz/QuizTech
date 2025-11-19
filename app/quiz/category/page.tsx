@@ -6,6 +6,7 @@ import { QuizHeader } from "@/components/quiz-header"
 import { QuizProgress } from "@/components/quiz-progress"
 import { QuestionDisplay } from "@/components/question-display"
 import { AnswerOptions } from "@/components/answer-options"
+import { ExplanationBox } from "@/components/explanation-box"
 import { Button } from "@/components/ui/button"
 import { CheckCircle } from "lucide-react"
 
@@ -196,6 +197,25 @@ export default function QuizPage() {
     // Aquí se manejaría la lógica de verificación de respuesta
   }
 
+  const getExplanation = () => {
+    // In this sample data set options are strings; we can check for question.explanation
+    if ((question as any).explanation) return (question as any).explanation
+    return null
+  }
+
+  const getOptionText = (opts: any, idxOrVal: any) => {
+    if (!Array.isArray(opts)) return undefined
+    const first = opts[0]
+    if (first && typeof first === 'object') {
+      if (typeof idxOrVal === 'number') return opts[idxOrVal]?.text
+      if (typeof idxOrVal === 'string') return idxOrVal
+      return undefined
+    }
+    if (typeof idxOrVal === 'number') return opts[idxOrVal]
+    if (typeof idxOrVal === 'string') return idxOrVal
+    return undefined
+  }
+
   const handleNext = () => {
     if (currentQuestion < quiz.questions.length - 1) {
       setCurrentQuestion(currentQuestion + 1)
@@ -231,6 +251,16 @@ export default function QuizPage() {
             isAnswered={isAnswered}
             correctAnswer={question.correctAnswer}
           />
+
+          {isAnswered && (
+            <div className="mt-4">
+              <ExplanationBox
+                isCorrect={selectedAnswer === question.correctAnswer}
+                explanation={getExplanation()}
+                correctText={getOptionText(question.options, question.correctAnswer)}
+              />
+            </div>
+          )}
 
           <div className="flex justify-end">
             {!isAnswered ? (

@@ -6,6 +6,7 @@ import { QuizHeader } from "@/components/quiz-header"
 import { QuizProgress } from "@/components/quiz-progress"
 import { QuestionDisplay } from "@/components/question-display"
 import { AnswerOptions } from "@/components/answer-options"
+import { ExplanationBox } from "@/components/explanation-box"
 import { Button } from "@/components/ui/button"
 import { CheckCircle } from "lucide-react"
 
@@ -13,7 +14,8 @@ type FetchedQuestion = {
 	id: number
 	question: string
 	type: string
-	options: Array<{ id: number; text: string; is_correct: number }>
+	explanation?: string | null
+	options: Array<{ id: number; text: string; is_correct: number; explanation?: string | null }>
 }
 
 export default function QuizPage() {
@@ -53,7 +55,8 @@ export default function QuizPage() {
 					id: q.id,
 					question: q.question,
 					type: q.type || 'single',
-					options: q.options || [],
+					explanation: q.explanation ?? null,
+					options: (q.options || []).map((o: any) => ({ id: o.id, text: o.text, is_correct: Number(o.is_correct || 0), explanation: o.explanation ?? null })),
 				}))
 				setQuestions(mapped)
 				// inicializar array de respuestas
@@ -121,6 +124,16 @@ export default function QuizPage() {
 		// lógica adicional: podríamos POSTear respuestas al backend aquí
 	}
 
+	// Obtener texto de explicación si está disponible en la opción o en la pregunta
+	const getExplanation = () => {
+		// Si la opción tiene un campo `explanation`, úsalo
+		const opt = question.options[selectedAnswer ?? -1] as any
+		if (opt && opt.explanation) return opt.explanation
+		// Si la pregunta tiene explicación general
+		if ((question as any).explanation) return (question as any).explanation
+		return null
+	}
+
 	const handleNext = () => {
 		if (currentQuestion < questions.length - 1) {
 			setCurrentQuestion(currentQuestion + 1)
@@ -185,6 +198,16 @@ export default function QuizPage() {
 						isAnswered={isAnswered}
 						correctAnswer={correctAnswerIndex}
 					/>
+
+					{isAnswered && (
+						<div className="mt-4">
+							<ExplanationBox
+								isCorrect={selectedAnswer === correctAnswerIndex}
+								explanation={getExplanation()}
+								correctText={question.options[correctAnswerIndex]?.text}
+							/>
+						</div>
+					)}
 
 					<div className="flex justify-end">
 						{!isAnswered ? (

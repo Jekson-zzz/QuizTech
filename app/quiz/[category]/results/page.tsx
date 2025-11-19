@@ -6,6 +6,9 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
+import { ExplanationBox } from "@/components/explanation-box"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { ChevronDown } from "lucide-react"
 import { Trophy, Clock, Zap, CheckCircle, XCircle, Home, RotateCcw, Star, Target } from "lucide-react"
 
 // Datos de ejemplo para los resultados
@@ -53,6 +56,8 @@ export default function QuizResultsPage() {
   const [xpFromServer, setXpFromServer] = useState<number | null>(null)
   const [serverNewAchievements, setServerNewAchievements] = useState<any[]>([])
   const [serverAchievementProgress, setServerAchievementProgress] = useState<any[]>([])
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [selectedDetail, setSelectedDetail] = useState<any | null>(null)
 
   useEffect(() => {
     try {
@@ -325,6 +330,41 @@ export default function QuizResultsPage() {
     return `${mins}:${secs.toString().padStart(2, "0")}`
   }
 
+  const getOptionText = (options: any[] | undefined, idxOrVal: any) => {
+    if (!options) return undefined
+    const first = options[0]
+    if (first && typeof first === 'object') {
+      if (typeof idxOrVal === 'number') return options[idxOrVal]?.text
+      if (typeof idxOrVal === 'string' || typeof idxOrVal === 'number') {
+        const found = options.find((o: any) => String(o.text) === String(idxOrVal) || String(o.id) === String(idxOrVal))
+        return found?.text
+      }
+      return undefined
+    }
+    if (typeof idxOrVal === 'number') return options[idxOrVal]
+    if (typeof idxOrVal === 'string') return idxOrVal
+    return undefined
+  }
+
+  const getExplanationForDetail = (q: any) => {
+    if (!q) return null
+    if (q.explanation && typeof q.explanation === 'string') return q.explanation
+    try {
+      if (Array.isArray(q.options) && typeof q.correctAnswer === 'number') {
+        const opt = q.options[q.correctAnswer]
+        if (opt && typeof opt === 'object' && typeof opt.explanation === 'string') return opt.explanation
+      }
+    } catch (e) {}
+    try {
+      if (Array.isArray(q.options) && (typeof q.selected === 'number' || typeof q.selected === 'string')) {
+        const sel = typeof q.selected === 'number' ? q.selected : q.options.findIndex((o: any) => String(o.text) === String(q.selected) || String(o.id) === String(q.selected))
+        const opt = q.options[sel]
+        if (opt && typeof opt === 'object' && typeof opt.explanation === 'string') return opt.explanation
+      }
+    } catch (e) {}
+    return null
+  }
+
   return (
     <div className="min-h-screen bg-linear-to-br from-background via-background to-muted/20">
       <div className="container mx-auto max-w-4xl px-4 py-8">
@@ -403,18 +443,22 @@ export default function QuizResultsPage() {
                         {index + 1}. {q.question}
                       </p>
                       <div className="mt-1 text-xs text-muted-foreground">
-                        {(q as any).selected !== undefined && (
-                          <div>
-                            <strong className="text-foreground mr-1">Tu respuesta:</strong>
-                            <span>{String((q as any).selected)}</span>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setSelectedDetail(q)
+                                setDialogOpen(true)
+                              }}
+                              className="flex items-center gap-2"
+                            >
+                              <span className="text-sm">Ver explicación</span>
+                              <ChevronDown className={`h-4 w-4 transition-transform`} />
+                            </Button>
                           </div>
-                        )}
-                        {(q as any).correctAnswer !== undefined && (
-                          <div>
-                            <strong className="text-foreground mr-1">Respuesta correcta:</strong>
-                            <span>{String((q as any).correctAnswer)}</span>
-                          </div>
-                        )}
+                        </div>
                       </div>
                     </div>
                     <Badge
@@ -428,6 +472,24 @@ export default function QuizResultsPage() {
               </div>
             ))}
           </div>
+          {/* Shared Modal for explanations (moved out of the map) */}
+          <Dialog open={dialogOpen} onOpenChange={() => setDialogOpen(false)}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Explicación</DialogTitle>
+                <DialogDescription />
+              </DialogHeader>
+              <div className="space-y-4">
+                {selectedDetail && (
+                  <ExplanationBox
+                    isCorrect={!!selectedDetail.correct}
+                    explanation={getExplanationForDetail(selectedDetail)}
+                    correctText={getOptionText(selectedDetail.options, selectedDetail.correctAnswer)}
+                  />
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
         </Card>
 
         {/* Logros Desbloqueados */}

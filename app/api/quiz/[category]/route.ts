@@ -32,20 +32,33 @@ export async function GET(req: Request, context: any) {
     }
 
     const categoryId = categoryRow.id
+    // permitir modo debug vía query param ?debug=1 para devolver filas crudas y facilitar diagnóstico
+    const reqUrl = typeof req.url === 'string' ? new URL(req.url) : null
+    const debugMode = reqUrl ? reqUrl.searchParams.get('debug') === '1' : false
 
     // Obtener preguntas y respuestas asociadas a la categoría
-    // The questions table uses `text` and `difficulty`; older columns like `type`, `order`, `points`
-    // may not exist depending on migration state. Select available columns and map defaults below.
-    const [qrows] = await conn.execute(
-      'SELECT q.id AS question_id, q.text AS question_text, q.difficulty AS question_difficulty, ' +
-  'a.id AS answer_id, a.text AS answer_text, a.is_correct ' +
-      'FROM questions q ' +
-      'JOIN scenarios s ON q.scenario_id = s.id ' +
-      'LEFT JOIN answers a ON a.question_id = q.id ' +
-      'WHERE s.category_id = ? ' +
-  'ORDER BY q.id, a.id ASC',
-      [categoryId]
+    // Detectar si las columnas `explanation` existen en runtime para construir la SELECT dinámicamente.
+    const [[qCol]]: any = await conn.execute(
+      "SELECT COUNT(*) as cnt FROM information_schema.COLUMNS WHERE table_schema = DATABASE() AND table_name = 'questions' AND column_name = 'explanation'"
     )
+    const [[aCol]]: any = await conn.execute(
+      "SELECT COUNT(*) as cnt FROM information_schema.COLUMNS WHERE table_schema = DATABASE() AND table_name = 'answers' AND column_name = 'explanation'"
+    )
+
+    const includeQuestionExplanation = Boolean(qCol && qCol.cnt > 0)
+    const includeAnswerExplanation = Boolean(aCol && aCol.cnt > 0)
+
+    // Construir listado de columnas dinámicamente
+    let selectClause = 'SELECT q.id AS question_id, q.text AS question_text, q.difficulty AS question_difficulty'
+    if (includeQuestionExplanation) selectClause += ', q.explanation AS question_explanation'
+    selectClause += ', a.id AS answer_id, a.text AS answer_text, a.is_correct'
+    if (includeAnswerExplanation) selectClause += ', a.explanation AS answer_explanation'
+
+    const query =
+      selectClause +
+      ' FROM questions q JOIN scenarios s ON q.scenario_id = s.id LEFT JOIN answers a ON a.question_id = q.id WHERE s.category_id = ? ORDER BY q.id, a.id ASC'
+
+    const [qrows] = await conn.execute(query, [categoryId])
 
     const rowsArray = Array.isArray(qrows) ? (qrows as any[]) : []
 
@@ -61,19 +74,25 @@ export async function GET(req: Request, context: any) {
           // Provide a sensible default and keep difficulty available if needed.
           type: 'single',
           difficulty: r.question_difficulty || 'medio',
+          explanation: r.question_explanation || null,
           order: 0,
           points: 1,
-          options: [] as Array<{ id: number; text: string; is_correct: number }>,
+          options: [] as Array<{ id: number; text: string; is_correct: number; explanation?: string | null }>,
         })
       }
       if (r.answer_id) {
-        map.get(qid).options.push({ id: r.answer_id, text: r.answer_text, is_correct: Number(r.is_correct || 0) })
+        map.get(qid).options.push({ id: r.answer_id, text: r.answer_text, is_correct: Number(r.is_correct || 0), explanation: r.answer_explanation || null })
       }
     }
 
     const questions = Array.from(map.values())
 
     await conn.end()
+
+    if (debugMode) {
+      // devolver filas crudas para inspección (útil cuando hay discrepancias entre BD y API)
+      return NextResponse.json({ debug: true, category: { id: categoryRow.id, name: categoryRow.name }, rows: rowsArray, questions })
+    }
 
     return NextResponse.json({ category: { id: categoryRow.id, name: categoryRow.name }, questions })
   } catch (e: any) {
