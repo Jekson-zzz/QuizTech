@@ -26,19 +26,16 @@ export function ExplanationBox({ isCorrect, explanation, correctText }: Explanat
                 ) : (
                   <p className="whitespace-normal wrap-break-word">Elección incorrecta — te explico por qué 🤓</p>
                 )}
-                <p className="mt-3 text-xs text-muted-foreground">📚 {explanation}</p>
+                <p className="mt-3 text-xs text-muted-foreground">📚 {String(explanation)}</p>
               </>
             ) : (
               <>
                 {isCorrect ? (
-                  <p className="whitespace-normal">Buena elección. No hay explicación adicional disponible.</p>
+                  <p className="mt-2 whitespace-normal">La explicación a tu respuesta es: <strong className="wrap-break-word whitespace-normal">{correctText ?? explanation ?? '—'}</strong></p>
                 ) : (
-                  <>
-                    <p className="whitespace-normal">Respuesta incorrecta. No hay explicación adicional disponible.</p>
-                    <p className="mt-2 whitespace-normal">La respuesta correcta es: <strong className="wrap-break-word whitespace-normal">{correctText ?? '—'}</strong></p>
-                  </>
+                  <p className="mt-2 whitespace-normal">Te explico el por qué: <strong className="wrap-break-word whitespace-normal">{correctText ?? explanation ?? '—'}</strong></p>
                 )}
-                <p className="mt-2 text-xs text-muted-foreground"><Info className="inline h-4 w-4 mr-1 align-text-bottom" /> Se añadira proximamente la explicacion de esta respuesta.</p>
+                
               </>
             )}
           </div>

@@ -58,7 +58,26 @@ export default function QuizPage() {
 					explanation: q.explanation ?? null,
 					options: (q.options || []).map((o: any) => ({ id: o.id, text: o.text, is_correct: Number(o.is_correct || 0), explanation: o.explanation ?? null })),
 				}))
-				setQuestions(mapped)
+
+				// Fisher-Yates shuffle
+				function shuffleArray<T>(arr: T[]) {
+					const a = arr.slice()
+					for (let i = a.length - 1; i > 0; i--) {
+						const j = Math.floor(Math.random() * (i + 1))
+						const tmp = a[i]
+						a[i] = a[j]
+						a[j] = tmp
+					}
+					return a
+				}
+
+				// Shuffle questions and their options for each quiz attempt
+				const shuffledQuestions = shuffleArray(mapped).map((q) => ({
+					...q,
+					options: shuffleArray(q.options),
+				}))
+
+				setQuestions(shuffledQuestions)
 				// inicializar array de respuestas
 				setAnswers(new Array(mapped.length).fill(null))
 			} catch (e) {
